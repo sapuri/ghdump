@@ -69,6 +69,23 @@ func main() {
 
 	ctx := context.Background()
 
+	// Display configuration
+	_, _ = fmt.Fprintf(os.Stderr, "Configuration:\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  Period: %s - %s\n", *since, *until)
+	_, _ = fmt.Fprintf(os.Stderr, "  Author: %s\n", *author)
+	_, _ = fmt.Fprintf(os.Stderr, "  Include body: %t\n", *includeBody)
+	if *orgs != "" {
+		_, _ = fmt.Fprintf(os.Stderr, "  Organizations: %s\n", *orgs)
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "  Organizations: all\n")
+	}
+	if *output != "" {
+		_, _ = fmt.Fprintf(os.Stderr, "  Output: %s\n", *output)
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "  Output: stdout\n")
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "\n")
+
 	_, _ = fmt.Fprintf(os.Stderr, "Fetching issues...\n")
 	issues, err := client.GetIssues(ctx, sinceTime, untilTime, *author, *includeBody)
 	if err != nil {
@@ -79,7 +96,7 @@ func main() {
 	_, _ = fmt.Fprintf(os.Stderr, "Fetching pull requests...\n")
 	prs, err := client.GetPullRequests(ctx, sinceTime, untilTime, *author, *includeBody)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error fetching pull requests: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error fetching pull requests: %v\n", err)
 		os.Exit(1)
 	}
 
