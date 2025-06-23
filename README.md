@@ -12,11 +12,21 @@ A tool to fetch GitHub activity for a specified period and generate Markdown rep
 ## Prerequisites
 
 - Go
-- GITHUB_TOKEN environment variable or GitHub CLI (`gh` command) authentication
+- `GITHUB_TOKEN` environment variable or GitHub CLI (`gh` command) authentication
 
 ## Installation
 
+### Using go install
+
 ```bash
+go install github.com/sapuri/ghdump@latest
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/sapuri/ghdump.git
+cd ghdump
 make build
 ```
 
@@ -24,36 +34,46 @@ make build
 
 ```bash
 # Using GitHub CLI authentication token
-GITHUB_TOKEN=$(gh auth token) ./ghdump -since 2025-01-01 -until 2025-06-30 -author username [-output report.md]
+GITHUB_TOKEN=$(gh auth token) ghdump -since 2025-01-01 -until 2025-06-30 -author username [-output report.md]
 
 # Or set environment variable beforehand
 export GITHUB_TOKEN=$(gh auth token)
-./ghdump -since 2025-01-01 -until 2025-06-30 -author username [-output report.md]
+ghdump -since 2025-01-01 -until 2025-06-30 -author username [-output report.md]
 ```
 
 ### Options
 
-- `-since`: Start date (YYYY-MM-DD format)
-- `-until`: End date (YYYY-MM-DD format)
-- `-author`: Target GitHub username
-- `-output`: Output file path (outputs to stdout if not specified)
-- `-body`: Include issue/PR descriptions (default: true)
-- `-orgs`: Target GitHub organizations (comma-separated, targets all organizations if omitted)
+```
+$ ghdump -h
+Usage of ghdump:
+  -author string
+    	GitHub username to filter by
+  -body
+    	Include issue/PR descriptions (default true)
+  -orgs string
+    	Comma-separated list of GitHub organizations (optional: if not specified, searches all organizations)
+  -output string
+    	Output file path (optional)
+  -since string
+    	Start date (YYYY-MM-DD)
+  -until string
+    	End date (YYYY-MM-DD)
+```
 
 ### Examples
 
 ```bash
 # Display report to stdout
-GITHUB_TOKEN=$(gh auth token) ./ghdump -since 2024-01-01 -until 2024-03-31 -author username
+GITHUB_TOKEN=$(gh auth token) ghdump -since 2025-01-01 -until 2025-06-30 -author username
 
 # Save report to file
-GITHUB_TOKEN=$(gh auth token) ./ghdump -since 2024-01-01 -until 2024-03-31 -author username -output quarterly-report.md
+GITHUB_TOKEN=$(gh auth token) ghdump -since 2025-01-01 -until 2025-06-30 -author username -output quarterly-report.md
 
 # Generate concise report without descriptions
-GITHUB_TOKEN=$(gh auth token) ./ghdump -since 2024-01-01 -until 2024-03-31 -author username -body=false -output summary-report.md
+GITHUB_TOKEN=$(gh auth token) ghdump -since 2025-01-01 -until 2025-06-30 -author username -body=false -output summary-report.md
 
 # Target specific organizations only
-GITHUB_TOKEN=$(gh auth token) ./ghdump -since 2024-01-01 -until 2024-03-31 -author username -orgs "myorg,anotherorg" -output specific-orgs-report.md
+GITHUB_TOKEN=$(gh auth token) ghdump -since 2025-01-01 -until 2025-06-30 -author username -orgs "myorg,anotherorg" -output specific-orgs-report.md
 ```
 
 ## Report Format
