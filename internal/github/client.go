@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -23,6 +24,12 @@ func NewClient(orgs, repos []string) (*Client, error) {
 		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required")
 	}
 
+	for _, repo := range repos {
+		if !isValidRepoFullName(repo) {
+			return nil, fmt.Errorf("invalid repository %q: expected owner/repo format", repo)
+		}
+	}
+
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
@@ -36,6 +43,26 @@ func NewClient(orgs, repos []string) (*Client, error) {
 	}, nil
 }
 
+// isValidRepoFullName reports whether repo is in "owner/repo" form.
+func isValidRepoFullName(repo string) bool {
+	owner, name, ok := strings.Cut(repo, "/")
+	return ok && owner != "" && name != "" && !strings.Contains(name, "/")
+}
+
+// repoFullNameFromURL extracts the "owner/repo" full name from a GitHub HTML
+// URL such as https://github.com/owner/repo/issues/123. It reports false if
+// htmlURL is nil or doesn't have the expected shape.
+func repoFullNameFromURL(htmlURL *string) (string, bool) {
+	if htmlURL == nil {
+		return "", false
+	}
+	urlParts := strings.Split(*htmlURL, "/")
+	if len(urlParts) < 6 {
+		return "", false
+	}
+	return urlParts[3] + "/" + urlParts[4], true
+}
+
 // shouldIncludeRepo reports whether repoFullName (e.g. "owner/repo") passes
 // the configured org and repo filters. If repos are specified, only exact
 // (case-insensitive) matches are included. If orgs are specified, only repos
@@ -43,29 +70,17 @@ func NewClient(orgs, repos []string) (*Client, error) {
 // AND when set. GitHub owner/repo names are case-insensitive, so matching
 // uses strings.EqualFold rather than exact comparison.
 func (g *Client) shouldIncludeRepo(repoFullName string) bool {
-	if len(g.repos) > 0 {
-		matched := false
-		for _, repo := range g.repos {
-			if strings.EqualFold(repoFullName, repo) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
+	if len(g.repos) > 0 && !slices.ContainsFunc(g.repos, func(repo string) bool {
+		return strings.EqualFold(repoFullName, repo)
+	}) {
+		return false
 	}
 
 	if len(g.orgs) > 0 {
 		owner, _, _ := strings.Cut(repoFullName, "/")
-		matched := false
-		for _, org := range g.orgs {
-			if strings.EqualFold(owner, org) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
+		if !slices.ContainsFunc(g.orgs, func(org string) bool {
+			return strings.EqualFold(owner, org)
+		}) {
 			return false
 		}
 	}
@@ -100,47 +115,44 @@ func (g *Client) GetIssues(
 		for _, issue := range result.Issues {
 			// Skip results missing the fields required to map an Issue,
 			// e.g. issues from since-deleted GitHub accounts have a nil User.
-			if issue.HTMLURL == nil || issue.User == nil || issue.User.Login == nil {
+			if issue.User == nil || issue.User.Login == nil {
 				continue
 			}
 
-			// Parse repository from URL like https://github.com/owner/repo/issues/123
-			urlParts := strings.Split(*issue.HTMLURL, "/")
-			if len(urlParts) < 6 {
+			repoFullName, ok := repoFullNameFromURL(issue.HTMLURL)
+			if !ok || !g.shouldIncludeRepo(repoFullName) {
 				continue
 			}
 
-			repoFullName := urlParts[3] + "/" + urlParts[4]
-
-			if g.shouldIncludeRepo(repoFullName) {
-				body := ""
-				if includeBody && issue.Body != nil {
-					body = *issue.Body
-				}
-
-				mappedIssue := Issue{
-					Number:    *issue.Number,
-					Title:     *issue.Title,
-					Body:      body,
-					State:     *issue.State,
-					CreatedAt: issue.CreatedAt.Time,
-					UpdatedAt: issue.UpdatedAt.Time,
-					HTMLURL:   *issue.HTMLURL,
-					Repository: struct {
-						Name     string `json:"name"`
-						FullName string `json:"full_name"`
-					}{
-						Name:     urlParts[4],
-						FullName: repoFullName,
-					},
-					User: struct {
-						Login string `json:"login"`
-					}{
-						Login: *issue.User.Login,
-					},
-				}
-				allIssues = append(allIssues, mappedIssue)
+			body := ""
+			if includeBody && issue.Body != nil {
+				body = *issue.Body
 			}
+
+			_, repoName, _ := strings.Cut(repoFullName, "/")
+
+			mappedIssue := Issue{
+				Number:    *issue.Number,
+				Title:     *issue.Title,
+				Body:      body,
+				State:     *issue.State,
+				CreatedAt: issue.CreatedAt.Time,
+				UpdatedAt: issue.UpdatedAt.Time,
+				HTMLURL:   *issue.HTMLURL,
+				Repository: struct {
+					Name     string `json:"name"`
+					FullName string `json:"full_name"`
+				}{
+					Name:     repoName,
+					FullName: repoFullName,
+				},
+				User: struct {
+					Login string `json:"login"`
+				}{
+					Login: *issue.User.Login,
+				},
+			}
+			allIssues = append(allIssues, mappedIssue)
 		}
 
 		if resp.NextPage == 0 {
@@ -179,57 +191,54 @@ func (g *Client) GetPullRequests(
 		for _, issue := range result.Issues {
 			// Skip results missing the fields required to map a PullRequest,
 			// e.g. issues from since-deleted GitHub accounts have a nil User.
-			if issue.HTMLURL == nil || issue.User == nil || issue.User.Login == nil {
+			if issue.User == nil || issue.User.Login == nil {
 				continue
 			}
 
-			// Parse repository from URL like https://github.com/owner/repo/pull/123
-			urlParts := strings.Split(*issue.HTMLURL, "/")
-			if len(urlParts) < 6 {
+			repoFullName, ok := repoFullNameFromURL(issue.HTMLURL)
+			if !ok || !g.shouldIncludeRepo(repoFullName) {
 				continue
 			}
 
-			repoFullName := urlParts[3] + "/" + urlParts[4]
-
-			if g.shouldIncludeRepo(repoFullName) {
-				body := ""
-				if includeBody && issue.Body != nil {
-					body = *issue.Body
-				}
-
-				// The search API reports issue state as "open"/"closed" only;
-				// a merged PR is inferred from the pull_request.merged_at field.
-				state := *issue.State
-				var mergedAt *time.Time
-				if issue.PullRequestLinks != nil && issue.PullRequestLinks.MergedAt != nil {
-					mergedAt = &issue.PullRequestLinks.MergedAt.Time
-					state = "merged"
-				}
-
-				mappedPR := PullRequest{
-					Number:    *issue.Number,
-					Title:     *issue.Title,
-					Body:      body,
-					State:     state,
-					CreatedAt: issue.CreatedAt.Time,
-					UpdatedAt: issue.UpdatedAt.Time,
-					MergedAt:  mergedAt,
-					HTMLURL:   *issue.HTMLURL,
-					Repository: struct {
-						Name     string `json:"name"`
-						FullName string `json:"full_name"`
-					}{
-						Name:     urlParts[4],
-						FullName: repoFullName,
-					},
-					User: struct {
-						Login string `json:"login"`
-					}{
-						Login: *issue.User.Login,
-					},
-				}
-				allPRs = append(allPRs, mappedPR)
+			body := ""
+			if includeBody && issue.Body != nil {
+				body = *issue.Body
 			}
+
+			// The search API reports issue state as "open"/"closed" only;
+			// a merged PR is inferred from the pull_request.merged_at field.
+			state := *issue.State
+			var mergedAt *time.Time
+			if issue.PullRequestLinks != nil && issue.PullRequestLinks.MergedAt != nil {
+				mergedAt = &issue.PullRequestLinks.MergedAt.Time
+				state = "merged"
+			}
+
+			_, repoName, _ := strings.Cut(repoFullName, "/")
+
+			mappedPR := PullRequest{
+				Number:    *issue.Number,
+				Title:     *issue.Title,
+				Body:      body,
+				State:     state,
+				CreatedAt: issue.CreatedAt.Time,
+				UpdatedAt: issue.UpdatedAt.Time,
+				MergedAt:  mergedAt,
+				HTMLURL:   *issue.HTMLURL,
+				Repository: struct {
+					Name     string `json:"name"`
+					FullName string `json:"full_name"`
+				}{
+					Name:     repoName,
+					FullName: repoFullName,
+				},
+				User: struct {
+					Login string `json:"login"`
+				}{
+					Login: *issue.User.Login,
+				},
+			}
+			allPRs = append(allPRs, mappedPR)
 		}
 
 		if resp.NextPage == 0 {
@@ -271,29 +280,17 @@ func (g *Client) GetReviewedPullRequests(
 				return allReviews, nil
 			}
 
-			// Extract repository info from the issue URL
-			if issue.HTMLURL == nil {
-				continue
-			}
-
-			// Parse repository from URL like https://github.com/owner/repo/pull/123
-			urlParts := strings.Split(*issue.HTMLURL, "/")
-			if len(urlParts) < 6 {
-				continue
-			}
-
-			repoFullName := urlParts[3] + "/" + urlParts[4]
-
-			if !g.shouldIncludeRepo(repoFullName) {
+			repoFullName, ok := repoFullNameFromURL(issue.HTMLURL)
+			if !ok || !g.shouldIncludeRepo(repoFullName) {
 				continue
 			}
 
 			processedPRs++
 
 			// Get reviews for this PR
-			parts := strings.Split(repoFullName, "/")
-			if len(parts) == 2 {
-				reviews, _, err := g.client.PullRequests.ListReviews(ctx, parts[0], parts[1], *issue.Number, nil)
+			owner, repo, ok := strings.Cut(repoFullName, "/")
+			if ok {
+				reviews, _, err := g.client.PullRequests.ListReviews(ctx, owner, repo, *issue.Number, nil)
 				if err != nil {
 					continue
 				}
@@ -301,8 +298,8 @@ func (g *Client) GetReviewedPullRequests(
 				// Also get review comments for this PR
 				reviewComments, _, err := g.client.PullRequests.ListComments(
 					ctx,
-					parts[0],
-					parts[1],
+					owner,
+					repo,
 					*issue.Number,
 					nil,
 				)

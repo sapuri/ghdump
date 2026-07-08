@@ -71,3 +71,46 @@ func TestShouldIncludeRepo(t *testing.T) {
 		})
 	}
 }
+
+func TestIsValidRepoFullName(t *testing.T) {
+	cases := map[string]struct {
+		repo string
+		want bool
+	}{
+		"valid owner/repo":  {repo: "myorg/myrepo", want: true},
+		"missing owner":     {repo: "myrepo", want: false},
+		"empty owner":       {repo: "/myrepo", want: false},
+		"empty repo":        {repo: "myorg/", want: false},
+		"too many segments": {repo: "myorg/myrepo/extra", want: false},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := isValidRepoFullName(tc.repo); got != tc.want {
+				t.Errorf("isValidRepoFullName(%q) = %v, want %v", tc.repo, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRepoFullNameFromURL(t *testing.T) {
+	url := "https://github.com/myorg/myrepo/issues/123"
+
+	cases := map[string]struct {
+		htmlURL  *string
+		wantName string
+		wantOK   bool
+	}{
+		"valid issue URL": {htmlURL: &url, wantName: "myorg/myrepo", wantOK: true},
+		"nil URL":         {htmlURL: nil, wantName: "", wantOK: false},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			gotName, gotOK := repoFullNameFromURL(tc.htmlURL)
+			if gotName != tc.wantName || gotOK != tc.wantOK {
+				t.Errorf("repoFullNameFromURL(%v) = (%q, %v), want (%q, %v)", tc.htmlURL, gotName, gotOK, tc.wantName, tc.wantOK)
+			}
+		})
+	}
+}

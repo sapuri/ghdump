@@ -69,10 +69,6 @@ func main() {
 			repoList[i] = strings.TrimSpace(repo)
 		}
 	}
-	if err := validateRepoFormat(repoList); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
 
 	client, err := github.NewClient(orgList, repoList)
 	if err != nil {
@@ -143,15 +139,4 @@ func main() {
 	} else {
 		fmt.Print(report)
 	}
-}
-
-// validateRepoFormat checks that each -repos entry is in owner/repo form.
-func validateRepoFormat(repos []string) error {
-	for _, repo := range repos {
-		owner, name, ok := strings.Cut(repo, "/")
-		if !ok || owner == "" || name == "" || strings.Contains(name, "/") {
-			return fmt.Errorf("invalid -repos entry %q: expected owner/repo format", repo)
-		}
-	}
-	return nil
 }
