@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Build**: `make build` - Builds the binary to `./ghdump`
 - **Run**: `./ghdump -since YYYY-MM-DD -until YYYY-MM-DD -author username` - Run the built binary
-- **Test**: No test suite is configured in this repository
+- **Test**: `make test`
 
 ## Architecture Overview
 
