@@ -13,6 +13,13 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	var (
 		since       = flag.String("since", "", "Start date (YYYY-MM-DD)")
 		until       = flag.String("until", "", "End date (YYYY-MM-DD)")
@@ -20,91 +27,63 @@ func main() {
 		output      = flag.String("output", "", "Output file path (optional)")
 		includeBody = flag.Bool("body", true, "Include issue/PR descriptions")
 		orgs        = flag.String("orgs", "", "Comma-separated list of GitHub organizations (optional: if not specified, searches all organizations)")
+		repos       = flag.String("repos", "", "Comma-separated list of GitHub repositories in owner/repo format (optional: if not specified, searches all repositories)")
 	)
 	flag.Parse()
 
-	if *since == "" {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: -since is required\n")
-		flag.Usage()
-		os.Exit(1)
+	requiredFlags := []struct {
+		name  string
+		value string
+	}{
+		{"since", *since},
+		{"until", *until},
+		{"author", *author},
 	}
-
-	if *until == "" {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: -until is required\n")
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	if *author == "" {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: -author is required\n")
-		flag.Usage()
-		os.Exit(1)
+	for _, f := range requiredFlags {
+		if f.value == "" {
+			flag.Usage()
+			return fmt.Errorf("-%s is required", f.name)
+		}
 	}
 
 	sinceTime, err := time.Parse("2006-01-02", *since)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error parsing since date: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("parsing since date: %w", err)
 	}
 
 	untilTime, err := time.Parse("2006-01-02", *until)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error parsing until date: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("parsing until date: %w", err)
 	}
 
-	var orgList []string
-	if *orgs != "" {
-		orgList = strings.Split(*orgs, ",")
-		for i, org := range orgList {
-			orgList[i] = strings.TrimSpace(org)
-		}
-	}
+	orgList := splitAndTrim(*orgs)
+	repoList := splitAndTrim(*repos)
 
-	client, err := github.NewClient(orgList)
+	client, err := github.NewClient(orgList, repoList)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error creating GitHub client: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("creating GitHub client: %w", err)
 	}
+
+	printConfiguration(*since, *until, *author, *includeBody, *orgs, *repos, *output)
 
 	ctx := context.Background()
-
-	// Display configuration
-	_, _ = fmt.Fprintf(os.Stderr, "Configuration:\n")
-	_, _ = fmt.Fprintf(os.Stderr, "  Period: %s - %s\n", *since, *until)
-	_, _ = fmt.Fprintf(os.Stderr, "  Author: %s\n", *author)
-	_, _ = fmt.Fprintf(os.Stderr, "  Include body: %t\n", *includeBody)
-	if *orgs != "" {
-		_, _ = fmt.Fprintf(os.Stderr, "  Organizations: %s\n", *orgs)
-	} else {
-		_, _ = fmt.Fprintf(os.Stderr, "  Organizations: all\n")
-	}
-	if *output != "" {
-		_, _ = fmt.Fprintf(os.Stderr, "  Output: %s\n", *output)
-	} else {
-		_, _ = fmt.Fprintf(os.Stderr, "  Output: stdout\n")
-	}
-	_, _ = fmt.Fprintf(os.Stderr, "\n")
 
 	_, _ = fmt.Fprintf(os.Stderr, "Fetching issues...\n")
 	issues, err := client.GetIssues(ctx, sinceTime, untilTime, *author, *includeBody)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error fetching issues: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("fetching issues: %w", err)
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "Fetching pull requests...\n")
 	prs, err := client.GetPullRequests(ctx, sinceTime, untilTime, *author, *includeBody)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error fetching pull requests: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("fetching pull requests: %w", err)
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "Fetching reviews...\n")
 	reviews, err := client.GetReviewedPullRequests(ctx, sinceTime, untilTime, *author)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error fetching reviews: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("fetching reviews: %w", err)
 	}
 
 	report := reporter.New(*includeBody).GenerateMarkdownReport(
@@ -116,13 +95,50 @@ func main() {
 		*author,
 	)
 
-	if *output != "" {
-		if err := os.WriteFile(*output, []byte(report), 0644); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error writing to file: %v\n", err)
-			os.Exit(1)
-		}
-		_, _ = fmt.Fprintf(os.Stderr, "Report written to %s\n", *output)
-	} else {
+	if *output == "" {
 		fmt.Print(report)
+		return nil
 	}
+
+	if err := os.WriteFile(*output, []byte(report), 0644); err != nil {
+		return fmt.Errorf("writing to file: %w", err)
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "Report written to %s\n", *output)
+
+	return nil
+}
+
+// printConfiguration prints the resolved run configuration to stderr.
+func printConfiguration(since, until, author string, includeBody bool, orgs, repos, output string) {
+	_, _ = fmt.Fprintf(os.Stderr, "Configuration:\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  Period: %s - %s\n", since, until)
+	_, _ = fmt.Fprintf(os.Stderr, "  Author: %s\n", author)
+	_, _ = fmt.Fprintf(os.Stderr, "  Include body: %t\n", includeBody)
+	printFilterLine("Organizations", orgs, "all")
+	printFilterLine("Repositories", repos, "all")
+	printFilterLine("Output", output, "stdout")
+	_, _ = fmt.Fprintf(os.Stderr, "\n")
+}
+
+// printFilterLine prints a single "label: value" configuration line, falling
+// back to defaultValue when value is empty, e.g. printFilterLine("Output",
+// "", "stdout") prints "  Output: stdout".
+func printFilterLine(label, value, defaultValue string) {
+	if value == "" {
+		value = defaultValue
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "  %s: %s\n", label, value)
+}
+
+// splitAndTrim splits a comma-separated flag value into trimmed, non-empty
+// elements, returning nil if none remain (e.g. for an empty string, a
+// whitespace-only value, or a trailing comma).
+func splitAndTrim(s string) []string {
+	var result []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
