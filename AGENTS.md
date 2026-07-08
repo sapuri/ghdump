@@ -22,7 +22,7 @@ This is a Go CLI application that fetches GitHub activity data and generates Mar
 
 1. CLI validates required flags (-since, -until, -author) and parses date ranges
 2. GitHub client authenticates using GITHUB_TOKEN environment variable
-3. Three parallel API calls fetch:
+3. Three sequential API calls fetch:
    - Issues created by the author
    - Pull requests created by the author  
    - Pull request reviews performed by the author
@@ -34,7 +34,7 @@ This is a Go CLI application that fetches GitHub activity data and generates Mar
 - Organization and repository filtering (-orgs, -repos) is applied client-side by parsing repository URLs; when both are set, a repository must satisfy both filters
 - Review fetching is limited to 100 PRs maximum to avoid API timeouts
 - Both PR reviews and review comments are collected for comprehensive review data
-- Report includes status indicators (🔴 open, ✅ closed/approved, 🟣 merged, 🔄 changes requested)
+- Report includes status indicators (🔴 open, ✅ closed/approved, 🟣 merged, 💬 commented, 🔄 changes requested)
 
 ### Authentication
 
