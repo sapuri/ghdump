@@ -38,13 +38,15 @@ func NewClient(orgs, repos []string) (*Client, error) {
 
 // shouldIncludeRepo reports whether repoFullName (e.g. "owner/repo") passes
 // the configured org and repo filters. If repos are specified, only exact
-// matches are included. If orgs are specified, only repos owned by one of
-// those orgs are included. Both filters are combined with AND when set.
+// (case-insensitive) matches are included. If orgs are specified, only repos
+// owned by one of those orgs are included. Both filters are combined with
+// AND when set. GitHub owner/repo names are case-insensitive, so matching
+// uses strings.EqualFold rather than exact comparison.
 func (g *Client) shouldIncludeRepo(repoFullName string) bool {
 	if len(g.repos) > 0 {
 		matched := false
 		for _, repo := range g.repos {
-			if repoFullName == repo {
+			if strings.EqualFold(repoFullName, repo) {
 				matched = true
 				break
 			}
@@ -55,9 +57,10 @@ func (g *Client) shouldIncludeRepo(repoFullName string) bool {
 	}
 
 	if len(g.orgs) > 0 {
+		owner, _, _ := strings.Cut(repoFullName, "/")
 		matched := false
 		for _, org := range g.orgs {
-			if strings.HasPrefix(repoFullName, org+"/") {
+			if strings.EqualFold(owner, org) {
 				matched = true
 				break
 			}

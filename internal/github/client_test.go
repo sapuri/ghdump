@@ -23,6 +23,11 @@ func TestShouldIncludeRepo(t *testing.T) {
 			repoFullName: "myorg/myrepo",
 			want:         false,
 		},
+		"org match is case-insensitive": {
+			orgs:         []string{"MyOrg"},
+			repoFullName: "myorg/myrepo",
+			want:         true,
+		},
 		"org prefix does not falsely match a similarly named org": {
 			orgs:         []string{"my"},
 			repoFullName: "myorg/myrepo",
@@ -37,6 +42,11 @@ func TestShouldIncludeRepo(t *testing.T) {
 			repos:        []string{"myorg/other"},
 			repoFullName: "myorg/myrepo",
 			want:         false,
+		},
+		"repo match is case-insensitive": {
+			repos:        []string{"MyOrg/MyRepo"},
+			repoFullName: "myorg/myrepo",
+			want:         true,
 		},
 		"repo filter takes precedence over unrelated org filter": {
 			orgs:         []string{"otherorg"},
