@@ -59,8 +59,9 @@ func (g *Client) GetIssues(
 		}
 
 		for _, issue := range result.Issues {
-			// Extract repository info from the issue URL
-			if issue.HTMLURL == nil {
+			// Skip results missing the fields required to map an Issue,
+			// e.g. issues from since-deleted GitHub accounts have a nil User.
+			if issue.HTMLURL == nil || issue.User == nil || issue.User.Login == nil {
 				continue
 			}
 
@@ -148,8 +149,9 @@ func (g *Client) GetPullRequests(
 		}
 
 		for _, issue := range result.Issues {
-			// Extract repository info from the issue URL
-			if issue.HTMLURL == nil {
+			// Skip results missing the fields required to map a PullRequest,
+			// e.g. issues from since-deleted GitHub accounts have a nil User.
+			if issue.HTMLURL == nil || issue.User == nil || issue.User.Login == nil {
 				continue
 			}
 
@@ -173,18 +175,25 @@ func (g *Client) GetPullRequests(
 			}
 
 			if shouldInclude {
-				var mergedAt *time.Time
-
 				body := ""
 				if includeBody && issue.Body != nil {
 					body = *issue.Body
+				}
+
+				// The search API reports issue state as "open"/"closed" only;
+				// a merged PR is inferred from the pull_request.merged_at field.
+				state := *issue.State
+				var mergedAt *time.Time
+				if issue.PullRequestLinks != nil && issue.PullRequestLinks.MergedAt != nil {
+					mergedAt = &issue.PullRequestLinks.MergedAt.Time
+					state = "merged"
 				}
 
 				mappedPR := PullRequest{
 					Number:    *issue.Number,
 					Title:     *issue.Title,
 					Body:      body,
-					State:     *issue.State,
+					State:     state,
 					CreatedAt: issue.CreatedAt.Time,
 					UpdatedAt: issue.UpdatedAt.Time,
 					MergedAt:  mergedAt,
