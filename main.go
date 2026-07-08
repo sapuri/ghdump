@@ -20,6 +20,7 @@ func main() {
 		output      = flag.String("output", "", "Output file path (optional)")
 		includeBody = flag.Bool("body", true, "Include issue/PR descriptions")
 		orgs        = flag.String("orgs", "", "Comma-separated list of GitHub organizations (optional: if not specified, searches all organizations)")
+		repos       = flag.String("repos", "", "Comma-separated list of GitHub repositories in owner/repo format (optional: if not specified, searches all repositories)")
 	)
 	flag.Parse()
 
@@ -61,7 +62,19 @@ func main() {
 		}
 	}
 
-	client, err := github.NewClient(orgList)
+	var repoList []string
+	if *repos != "" {
+		repoList = strings.Split(*repos, ",")
+		for i, repo := range repoList {
+			repoList[i] = strings.TrimSpace(repo)
+		}
+	}
+	if err := validateRepoFormat(repoList); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	client, err := github.NewClient(orgList, repoList)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error creating GitHub client: %v\n", err)
 		os.Exit(1)
@@ -78,6 +91,11 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "  Organizations: %s\n", *orgs)
 	} else {
 		_, _ = fmt.Fprintf(os.Stderr, "  Organizations: all\n")
+	}
+	if *repos != "" {
+		_, _ = fmt.Fprintf(os.Stderr, "  Repositories: %s\n", *repos)
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "  Repositories: all\n")
 	}
 	if *output != "" {
 		_, _ = fmt.Fprintf(os.Stderr, "  Output: %s\n", *output)
@@ -125,4 +143,15 @@ func main() {
 	} else {
 		fmt.Print(report)
 	}
+}
+
+// validateRepoFormat checks that each -repos entry is in owner/repo form.
+func validateRepoFormat(repos []string) error {
+	for _, repo := range repos {
+		owner, name, ok := strings.Cut(repo, "/")
+		if !ok || owner == "" || name == "" || strings.Contains(name, "/") {
+			return fmt.Errorf("invalid -repos entry %q: expected owner/repo format", repo)
+		}
+	}
+	return nil
 }

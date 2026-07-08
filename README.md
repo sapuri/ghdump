@@ -4,9 +4,9 @@ A tool to fetch GitHub activity for a specified period and generate Markdown rep
 
 ## Features
 
-- Fetch Issues within a specified period from specified organizations
-- Fetch Pull Requests within a specified period from specified organizations
-- Fetch reviewed Pull Requests within a specified period from specified organizations
+- Fetch Issues within a specified period from specified organizations or repositories
+- Fetch Pull Requests within a specified period from specified organizations or repositories
+- Fetch reviewed Pull Requests within a specified period from specified organizations or repositories
 - Generate reports in Markdown format
 
 ## Prerequisites
@@ -54,6 +54,8 @@ Usage of ghdump:
     	Comma-separated list of GitHub organizations (optional: if not specified, searches all organizations)
   -output string
     	Output file path (optional)
+  -repos string
+    	Comma-separated list of GitHub repositories in owner/repo format (optional: if not specified, searches all repositories)
   -since string
     	Start date (YYYY-MM-DD)
   -until string
@@ -74,6 +76,9 @@ GITHUB_TOKEN=$(gh auth token) ghdump -since 2025-01-01 -until 2025-06-30 -author
 
 # Target specific organizations only
 GITHUB_TOKEN=$(gh auth token) ghdump -since 2025-01-01 -until 2025-06-30 -author username -orgs "myorg,anotherorg" -output specific-orgs-report.md
+
+# Target specific repositories only
+GITHUB_TOKEN=$(gh auth token) ghdump -since 2025-01-01 -until 2025-06-30 -author username -repos "myorg/repo1,myorg/repo2" -output specific-repos-report.md
 ```
 
 ## Report Format

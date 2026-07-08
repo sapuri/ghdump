@@ -14,9 +14,10 @@ import (
 type Client struct {
 	client *github.Client
 	orgs   []string
+	repos  []string
 }
 
-func NewClient(orgs []string) (*Client, error) {
+func NewClient(orgs, repos []string) (*Client, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required")
@@ -31,7 +32,42 @@ func NewClient(orgs []string) (*Client, error) {
 	return &Client{
 		client: client,
 		orgs:   orgs,
+		repos:  repos,
 	}, nil
+}
+
+// shouldIncludeRepo reports whether repoFullName (e.g. "owner/repo") passes
+// the configured org and repo filters. If repos are specified, only exact
+// matches are included. If orgs are specified, only repos owned by one of
+// those orgs are included. Both filters are combined with AND when set.
+func (g *Client) shouldIncludeRepo(repoFullName string) bool {
+	if len(g.repos) > 0 {
+		matched := false
+		for _, repo := range g.repos {
+			if repoFullName == repo {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	if len(g.orgs) > 0 {
+		matched := false
+		for _, org := range g.orgs {
+			if strings.HasPrefix(repoFullName, org+"/") {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (g *Client) GetIssues(
@@ -73,18 +109,7 @@ func (g *Client) GetIssues(
 
 			repoFullName := urlParts[3] + "/" + urlParts[4]
 
-			// Check if the repository belongs to target organizations (if specified)
-			shouldInclude := len(g.orgs) == 0 // Include all if no orgs specified
-			if !shouldInclude {
-				for _, org := range g.orgs {
-					if strings.HasPrefix(repoFullName, org+"/") {
-						shouldInclude = true
-						break
-					}
-				}
-			}
-
-			if shouldInclude {
+			if g.shouldIncludeRepo(repoFullName) {
 				body := ""
 				if includeBody && issue.Body != nil {
 					body = *issue.Body
@@ -163,18 +188,7 @@ func (g *Client) GetPullRequests(
 
 			repoFullName := urlParts[3] + "/" + urlParts[4]
 
-			// Check if the repository belongs to target organizations (if specified)
-			shouldInclude := len(g.orgs) == 0 // Include all if no orgs specified
-			if !shouldInclude {
-				for _, org := range g.orgs {
-					if strings.HasPrefix(repoFullName, org+"/") {
-						shouldInclude = true
-						break
-					}
-				}
-			}
-
-			if shouldInclude {
+			if g.shouldIncludeRepo(repoFullName) {
 				body := ""
 				if includeBody && issue.Body != nil {
 					body = *issue.Body
@@ -267,17 +281,7 @@ func (g *Client) GetReviewedPullRequests(
 
 			repoFullName := urlParts[3] + "/" + urlParts[4]
 
-			// Check if the repository belongs to target organizations (if specified)
-			shouldInclude := len(g.orgs) == 0 // Include all if no orgs specified
-			if !shouldInclude {
-				for _, org := range g.orgs {
-					if strings.HasPrefix(repoFullName, org+"/") {
-						shouldInclude = true
-						break
-					}
-				}
-			}
-			if !shouldInclude {
+			if !g.shouldIncludeRepo(repoFullName) {
 				continue
 			}
 

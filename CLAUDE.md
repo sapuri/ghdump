@@ -31,7 +31,7 @@ This is a Go CLI application that fetches GitHub activity data and generates Mar
 ### Key Implementation Details
 
 - Uses GitHub Search API for issues and PRs to filter by author and date range
-- Organization filtering is applied client-side by parsing repository URLs
+- Organization and repository filtering (-orgs, -repos) is applied client-side by parsing repository URLs; when both are set, a repository must satisfy both filters
 - Review fetching is limited to 100 PRs maximum to avoid API timeouts
 - Both PR reviews and review comments are collected for comprehensive review data
 - Report includes status indicators (🔴 open, ✅ closed/approved, 🟣 merged, 🔄 changes requested)
