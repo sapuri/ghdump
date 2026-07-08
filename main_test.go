@@ -10,9 +10,12 @@ func TestSplitAndTrim(t *testing.T) {
 		input string
 		want  []string
 	}{
-		"empty string returns nil": {input: "", want: nil},
-		"single value":             {input: "myorg", want: []string{"myorg"}},
-		"multiple values trimmed":  {input: "myorg, another , third", want: []string{"myorg", "another", "third"}},
+		"empty string returns nil":    {input: "", want: nil},
+		"single value":                {input: "myorg", want: []string{"myorg"}},
+		"multiple values trimmed":     {input: "myorg, another , third", want: []string{"myorg", "another", "third"}},
+		"trailing comma drops empty":  {input: "myorg,", want: []string{"myorg"}},
+		"whitespace-only returns nil": {input: "  , ", want: nil},
+		"leading comma drops empty":   {input: ",myorg", want: []string{"myorg"}},
 	}
 
 	for name, tc := range cases {

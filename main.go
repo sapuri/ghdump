@@ -130,15 +130,15 @@ func printFilterLine(label, value, defaultValue string) {
 	_, _ = fmt.Fprintf(os.Stderr, "  %s: %s\n", label, value)
 }
 
-// splitAndTrim splits a comma-separated flag value into trimmed elements,
-// returning nil for an empty string.
+// splitAndTrim splits a comma-separated flag value into trimmed, non-empty
+// elements, returning nil if none remain (e.g. for an empty string, a
+// whitespace-only value, or a trailing comma).
 func splitAndTrim(s string) []string {
-	if s == "" {
-		return nil
+	var result []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			result = append(result, p)
+		}
 	}
-	parts := strings.Split(s, ",")
-	for i, p := range parts {
-		parts[i] = strings.TrimSpace(p)
-	}
-	return parts
+	return result
 }
