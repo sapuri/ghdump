@@ -48,7 +48,7 @@ func TestShouldIncludeRepo(t *testing.T) {
 			repoFullName: "myorg/myrepo",
 			want:         true,
 		},
-		"repo filter takes precedence over unrelated org filter": {
+		"org mismatch excludes despite a matching repo filter": {
 			orgs:         []string{"otherorg"},
 			repos:        []string{"myorg/myrepo"},
 			repoFullName: "myorg/myrepo",
